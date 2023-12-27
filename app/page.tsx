@@ -1,6 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Excalidraw, exportToBlob, serializeAsJSON } from "@excalidraw/excalidraw"
+import * as THREE from 'three';
+import { OrbitControls } from 'assets/three/OrbitControls.js';
+
 import * as fal from "@fal-ai/serverless-client"
 import Image from 'next/image'
 
@@ -15,11 +18,74 @@ const baseArgs = {
   seed
 }
 export default function Home() {
-  const [input, setInput] = useState('masterpice, best quality, A cinematic shot of a baby raccoon wearing an intricate italian priest robe')
+
+  const [prompt, setPrompt] = useState('digital art, beautiful snake, pattern');
+
   const [image, setImage] = useState(null)
-  const [sceneData, setSceneData] = useState<any>(null)
-  const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null)
   const [_appState, setAppState] = useState<any>(null)
+  const canvasRef = useRef(null);
+  const inputRef = useRef(null);
+
+
+  useEffect(() => {
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xADD8E6); // Set scene background to baby blue
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    
+    const renderer = new THREE.WebGLRenderer({
+        canvas: canvasRef.current,
+        preserverDrawingBuffer: true
+      });
+
+    const controls = new OrbitControls( camera, renderer.domElement );
+
+    renderer.setSize(400,400)
+    const light = new THREE.AmbientLight( 0x404040 ); // soft white light
+    scene.add( light );
+
+    const geometry = new THREE.TorusKnotGeometry( 2, 0.2, 100, 16 ); 
+    const material = new THREE.MeshNormalMaterial({
+      // color: 0x00ff00
+    });
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
+    camera.position.z = 5;
+    let hue = 0;
+    controls.update();
+
+    // let currentInput = getCurrentInput()
+    // console.log(currentInput)
+    const animate = async function () {
+      setTimeout( async function() {
+        controls.update();
+        requestAnimationFrame(animate);
+        cube.rotation.x += 0.01;
+        cube.rotation.y += 0.01;
+
+        // Change the cube's color over time
+        hue += 0.01;
+        if (hue >= 1) hue = 0; // Reset hue after full spectrum
+        const color = new THREE.Color(`hsl(${hue * 360}, 100%, 50%)`);
+        cube.material.color = color;
+
+        // Move the cube up and down over time in a smooth sin curve
+        cube.position.y = Math.sin(Date.now() * 0.001) * 2;
+
+        renderer.render(scene, camera);
+        // setAppState(appState)
+        let dataUrl = await getDataUrl()
+        send({
+          ...baseArgs,
+          image_url: dataUrl,
+          prompt: inputRef.current.value,
+        })
+
+      }, 1000 / 10);
+    };
+
+    animate();
+
+  }, []);
 
   const { send } = fal.realtime.connect('110602490-sdxl-turbo-realtime', {
     connectionKey: 'realtime-nextjs-app',
@@ -29,70 +95,46 @@ export default function Home() {
     }
   })
 
-  async function getDataUrl(appState = _appState) {
-    const elements = excalidrawAPI.getSceneElements()
-    if (!elements || !elements.length) return
-    const blob = await exportToBlob({
-      elements,
-      exportPadding: 0,
-      appState,
-      quality: 0.5,
-      files: excalidrawAPI.getFiles(),
-      getDimensions: () => { return {width: 450, height: 450}}
-    })
-    return await new Promise(r => {let a=new FileReader(); a.onload=r; a.readAsDataURL(blob)}).then(e => e.target.result)
+  async function getDataUrl() {
+    if (canvasRef.current) {
+      var blob = canvasRef.current.toDataURL();
+      return blob;
+    }
+    // handle the case when canvasRef.current is null
+    // return a default value or throw an error
+    return
   }
 
   return (
     <main className="p-12">
       <p className="text-xl mb-2">Fal SDXL Turbo</p>
       <input
+        ref={inputRef}
         className='border rounded-lg p-2 w-full mb-2'
-        value={input}
+        value={prompt}
         onChange={async (e) => {
-          setInput(e.target.value)
+          setPrompt(e.target.value)
           let dataUrl = await getDataUrl()
           send({
             ...baseArgs,
-            prompt: e.target.value,
+            prompt: prompt,
             image_url: dataUrl
           })
         }}
       />
-      <div className='flex'>
-        <div className="w-[550px] h-[570px]">
-          <Excalidraw
-            excalidrawAPI={(api)=> setExcalidrawAPI(api)}
-            onChange={async (elements, appState) => {
-              const newSceneData = serializeAsJSON(
-                elements,
-                appState,
-                excalidrawAPI.getFiles(),
-                'local'
-              )
-              if (newSceneData !== sceneData) {
-                setAppState(appState)
-                setSceneData(newSceneData)
-                let dataUrl = await getDataUrl(appState)
-                send({
-                  ...baseArgs,
-                  image_url: dataUrl,
-                  prompt: input,
-                })
-              }
-            }}
-          />
-        </div>
+      <div>
+        <canvas ref={canvasRef} />
         {
           image && (
             <Image
               src={image}
-              width={550}
-              height={550}
+              width={400}
+              height={400}
               alt='fal image'
             />
           )
         }
+        
       </div>
     </main>
   )
