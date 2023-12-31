@@ -28,8 +28,8 @@ export default function Home() {
 
   const [image, setImage] = useState(null)
   const [_appState, setAppState] = useState<any>(null)
-  const canvasRef = useRef(null);
-  const inputRef = useRef(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [animateToggle, setAnimateToggle] = useState(true);
   const animateToggleRef = useRef(animateToggle);
 
@@ -44,9 +44,10 @@ export default function Home() {
 
     // RENDERER
     const renderer = new THREE.WebGLRenderer({
-      canvas: canvasRef.current,
+      canvas: canvasRef.current, // eslint-disable-line
       preserverDrawingBuffer: true
     });
+    
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(400, 400);
     renderer.shadowMap.enabled = true;
@@ -71,7 +72,7 @@ export default function Home() {
         send({
           ...baseArgs,
           image_url: dataUrl,
-          prompt: inputRef.current.value,
+          prompt: inputRef.current?.value ?? ''
         })
     };
 
