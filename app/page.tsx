@@ -44,8 +44,8 @@ export default function Home() {
 
     // RENDERER
     const renderer = new THREE.WebGLRenderer({
-      canvas: canvasRef.current, // eslint-disable-line
-      preserverDrawingBuffer: true
+      canvas: canvasRef.current!,
+      preserveDrawingBuffer: true
     });
     
     renderer.setPixelRatio(window.devicePixelRatio);
